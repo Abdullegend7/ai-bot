@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>ChatAbdul Coder</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
+<style>
+  :root { --bg:#111827; --bg-alt:#1f2937; --user:#0ea5e9; --bot:#10b981; --text:#e5e7eb; --border:#4b5563; }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+  body{height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--text)}
+  header{background:var(--bg-alt);padding:.75rem 1rem;font-size:1.25rem;font-weight:600;border-bottom:1px solid var(--border)}
+  #chat{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.75rem;max-width:900px;margin:0 auto;width:100%}
+  .msg{display:flex;gap:.75rem}
+  .msg.user{flex-direction:row-reverse}
+  .msg .avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:600}
+  .msg.bot .avatar{background:var(--bot)}
+  .msg.user .avatar{background:var(--user)}
+  .msg .bubble{max-width:80%;padding:.75rem 1rem;border-radius:1rem;white-space:pre-wrap;word-break:break-word}
+  .msg.bot .bubble{background:var(--bg-alt);border:1px solid var(--border)}
+  .msg.user .bubble{background:var(--user);color:#fff}
+  .msg.bot pre{margin:.5rem 0;border-radius:.5rem;background:#1e2937 !important}
+  .run-btn{background:#0ea5e9;color:#fff;border:none;padding:.25rem .5rem;border-radius:.25rem;cursor:pointer;margin:.25rem 0}
+  #form{background:var(--bg-alt);border-top:1px solid var(--border);display:flex;padding:.75rem;gap:.5rem}
+  #input{flex:1;padding:.75rem 1rem;border:none;border-radius:9999px;background:#374151;color:var(--text);outline:none}
+  #send{background:var(--user);border:none;border-radius:50%;width:40px;height:40px;display:grid;place-items:center;cursor:pointer}
+  #typing{display:flex;gap:.25rem}
+  #typing span{width:8px;height:8px;background:#9ca3af;border-radius:50%;animation:blink 1.4s infinite}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+</style>
+</head>
+<body>
+
+<header>ChatAbdul Coder</header>
+<div id="chat">
+  <div class="msg bot">
+    <div class="avatar">🤖</div>
+    <div class="bubble">Hi! I’m ChatAbdul. Ask me to write or run code!</div>
+  </div>
+</div>
+
+<form id="form">
+  <input id="input" autocomplete="off" placeholder="Ask ChatAbdul anything…"/>
+  <button id="send" aria-label="Send">▶</button>
+</form>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script>
+const GEMINI_KEY = "AIzaSyBiZoUwCvkWq-gM68ROHux0AHYkrlhNGII";
+const MODEL      = "gemini-1.5-flash";
+const chat  = document.getElementById("chat");
+const form  = document.getElementById("form");
+const input = document.getElementById("input");
+
+let history = [{
+  role:"user",
+  parts:[{text:`You are ChatAbdul, a helpful AI assistant created by Abdul Majeed. If anyone asks "who made you?", respond with "I was created by Abdul Majeed." Always return code in fenced blocks with language tags and add a RUN button when appropriate.`}]
+}];
+
+function addMsg(text,who){
+  const div=document.createElement("div");
+  div.className=`msg ${who}`;
+  div.innerHTML=`${who==="bot"?'<div class="avatar">🤖</div>':''}<div class="bubble">${text}</div>${who==="user"?'<div class="avatar">👤</div>':''}`;
+  chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+  div.querySelectorAll("pre>code").forEach(block=>{
+    const lang=(block.className.match(/language-(\w+)/)||[])[1]||"text";
+    const btn=document.createElement("button");
+    btn.textContent="Run";
+    btn.className="run-btn";
+    btn.onclick=()=>runCode(block.textContent,lang);
+    block.parentNode.insertAdjacentElement("beforebegin",btn);
+  });
+}
+function addTyping(){
+  const div=document.createElement("div");
+  div.id="typing";
+  div.className="msg bot";
+  div.innerHTML='<div class="avatar">🤖</div><div class="bubble" id="typing-bubble"><span></span><span></span><span></span></div>';
+  chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+}
+function removeTyping(){
+  document.getElementById("typing")?.remove();
+}
+async function runCode(code,lang){
+  const runner=document.createElement("div");
+  runner.innerHTML="<b>Running…</b>";
+  runner.style.whiteSpace="pre-wrap";
+  runner.style.background="#0d1117";
+  runner.style.padding=".5rem";
+  runner.style.borderRadius=".5rem";
+  runner.style.margin=".5rem 0";
+  chat.appendChild(runner);
+  chat.scrollTop=chat.scrollHeight;
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({contents:[{role:"user",parts:[{text:`Run this ${lang} code and give only the console output:\n\n${code}`}]}],generationConfig:{temperature:0},tools:[{codeExecution:{}}]})
+  });
+  const data=await res.json();
+  const output=data.candidates?.[0]?.content?.parts?.[0]?.text||"No output / error";
+  runner.innerHTML="<b>Output:</b>\n"+output;
+}
+async function callAbdul(user){
+  history.push({role:"user",parts:[{text:user}]});
+  addMsg(user,"user");
+  addTyping();
+  const payload={contents:history,generationConfig:{temperature:.7},tools:[{codeExecution:{}}]};
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`;
+  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  removeTyping();
+  if(!res.ok){ addMsg("❌ ChatAbdul error – check quota/key","bot"); return;}
+  const data=await res.json();
+  const text=data.candidates?.[0]?.content?.parts?.[0]?.text||"No response";
+  addMsg(text,"bot");
+  history.push({role:"model",parts:[{text}]});
+}
+form.addEventListener("submit",e=>{
+  e.preventDefault();
+  const text=input.value.trim();
+  if(!text) return;
+  input.value="";
+  callAbdul(text);
+});
+</script>
+</body>
+</html>
